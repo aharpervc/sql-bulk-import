@@ -1,0 +1,26 @@
+# See https://docs.rubocop.org/rubocop/configuration
+AllCops:
+  TargetRubyVersion: 2.7
+  NewCops: enable
+
+plugins:
+  - rubocop-rake
+  - rubocop-rspec
+
+Naming/FileName:
+  Enabled: false
+
+Style/CommentAnnotation:
+  Enabled: false
+
+Style/TrailingCommaInArrayLiteral:
+  EnforcedStyleForMultiline: diff_comma
+
+RSpec/ExampleLength:
+  Enabled: false
+
+RSpec/MultipleExpectations:
+  Enabled: false
+
+RSpec/NoExpectationExample:
+  Enabled: false

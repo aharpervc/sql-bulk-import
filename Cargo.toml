@@ -1,0 +1,6 @@
+[workspace]
+resolver = "3"
+members = ["ext/sql_bulk_import_rs"]
+
+[profile.release]
+strip = true
