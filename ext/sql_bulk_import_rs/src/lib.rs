@@ -122,7 +122,7 @@ fn column_definition_sql(headers: &csv::StringRecord) -> Result<Vec<String>, Box
         let mut unique_column_name = safe_header_name.clone();
         let mut counter = i;
         while !column_names.insert(unique_column_name.clone()) {
-            unique_column_name = format!("{}_{}", safe_header_name, counter);
+            unique_column_name = format!("{}_{}", safe_header_name, counter + 1);
             counter += 1;
         }
 
@@ -136,7 +136,13 @@ fn replace_invalid_chars(name: &str) -> String {
     // todo: check for reserved keywords
     let safe_name = name.trim()
         .chars()
-        .filter(|c| c.is_alphanumeric() || *c == '_')
+        .map(|c| {
+            if c.is_ascii_alphanumeric()  {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect::<String>();
 
     // if the first character is a number, prefix with an underscore
