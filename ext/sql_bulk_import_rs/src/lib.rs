@@ -1,6 +1,7 @@
 use std::{collections::HashSet, error::Error, path::Path};
 
 use csv::Reader;
+use lucchetto::without_gvl;
 use magnus::{define_module, function, prelude::*};
 use tiberius::{Client, ColumnData, Config, TokenRow};
 use tokio::net::TcpStream;
@@ -24,7 +25,13 @@ async fn create_database_connection() -> Result<Client<Compat<TcpStream>>, Box<d
     Ok(client)
 }
 
-#[tokio::main]
+fn import_csv_file_blocking(path: String, reset_table: bool) -> Result<String, Box<dyn Error>> {
+    let rt = tokio::runtime::Runtime::new()?;
+    rt.block_on(async {
+        import_csv_file(path, reset_table).await
+    })
+}
+
 async fn import_csv_file(path: String, reset_table: bool) -> Result<String, Box<dyn Error>> {
     let file_stem = Path::new(&path)
         .file_stem()
@@ -66,7 +73,13 @@ async fn import_csv_file(path: String, reset_table: bool) -> Result<String, Box<
     Ok(safe_table_name)
 }
 
-#[tokio::main]
+fn export_csv_file_blocking(table_name: String, file_path: String) -> Result<(), Box<dyn Error>> {
+    let rt = tokio::runtime::Runtime::new()?;
+    rt.block_on(async {
+        export_csv_file(table_name, file_path).await
+    })
+}
+
 async fn export_csv_file(table_name: String, file_path: String) -> Result<(), Box<dyn Error>> {
     if table_name.is_empty() {
         return Err("Missing required parameter value: table_name".into());
@@ -153,13 +166,38 @@ fn replace_invalid_chars(name: &str) -> String {
     }
 }
 
+#[without_gvl]
+fn import_csv_file_without_gvl(path: String, reset_table: i32) -> String {
+    match import_csv_file_blocking(path, reset_table != 0) {
+        Ok(table_name) => table_name,
+        Err(e) => format!("ERROR: {e}"),
+    }
+}
+
+#[without_gvl]
+fn export_csv_file_without_gvl(table_name: String, file_path: String) -> String {
+    match export_csv_file_blocking(table_name, file_path) {
+        Ok(()) => "SUCCESS".to_string(),
+        Err(e) => format!("ERROR: {e}"),
+    }
+}
 
 fn ruby_import_csv_file(path: String, reset_table: bool) -> Result<String, magnus::Error> {
-    import_csv_file(path, reset_table).map_err(|e| magnus::Error::new(magnus::exception::runtime_error(), e.to_string()))
+    let result = import_csv_file_without_gvl(path, if reset_table { 1 } else { 0 });
+    if result.starts_with("ERROR: ") {
+        Err(magnus::Error::new(magnus::exception::runtime_error(), result.strip_prefix("ERROR: ").unwrap().to_string()))
+    } else {
+        Ok(result)
+    }
 }
 
 fn ruby_export_csv_file(table_name: String, file_path: String) -> Result<(), magnus::Error> {
-    export_csv_file(table_name, file_path).map_err(|e| magnus::Error::new(magnus::exception::runtime_error(), e.to_string()))
+    let result = export_csv_file_without_gvl(table_name, file_path);
+    if result.starts_with("ERROR: ") {
+        Err(magnus::Error::new(magnus::exception::runtime_error(), result.strip_prefix("ERROR: ").unwrap().to_string()))
+    } else {
+        Ok(())
+    }
 }
 
 #[magnus::init]
